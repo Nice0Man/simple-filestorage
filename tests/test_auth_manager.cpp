@@ -41,7 +41,7 @@ protected:
                 },
                 {
                     "username": "user",
-                    "password_hash": "04f8996da763b7a969b1028ee3007569eaf3a635486ddab211d512c85b9df8fb",
+                    "password_hash": "e606e38b0d8c19b24cf0ee3808183162ea7cd63ff7912dbb22b5e803286b4446",
                     "salt": "",
                     "role": "user",
                     "email": "user@test.com"
