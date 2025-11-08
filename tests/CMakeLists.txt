@@ -33,6 +33,7 @@ set(TEST_SOURCES
     test_file_manager.cpp
     test_config_manager.cpp
     test_mime_type_detector.cpp
+    test_ci_integration.cpp
 )
 
 # Add auth manager tests only if PostgreSQL is found (auth depends on database)
