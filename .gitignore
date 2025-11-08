@@ -1,6 +1,20 @@
 # Prerequisites
 *.d
-
+build/
+bin/
+obj/
+lib/
+include/
+src/
+test/
+test-bin/
+test-lib/
+test-obj/
+test-pch/
+test-slo/
+test-lo/
+test-o/
+test-obj/
 # Compiled Object files
 *.slo
 *.lo
