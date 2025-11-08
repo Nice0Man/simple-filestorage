@@ -1,0 +1,978 @@
+openapi: 3.0.3
+info:
+  title: FileServer API
+  description: |
+    A high-performance C++ file server with REST API for file management operations.
+    
+    ## Features
+    - File upload, download, and deletion
+    - Directory listing and navigation
+    - JWT-based authentication
+    - Role-based access control
+    - CORS support
+    - Health monitoring
+    
+    ## Authentication
+    Most endpoints require JWT authentication. Include the token in the Authorization header:
+    ```
+    Authorization: Bearer <jwt_token>
+    ```
+    
+  version: 1.0.0
+  contact:
+    name: FileServer Support
+    email: support@fileserver.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8080
+    description: Development server
+  - url: https://api.fileserver.com
+    description: Production server
+
+security:
+  - BearerAuth: []
+
+paths:
+  /health:
+    get:
+      tags:
+        - System
+      summary: Health check
+      description: Check if the server is running and healthy
+      security: []
+      responses:
+        '200':
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+                  timestamp:
+                    type: integer
+                    format: int64
+                    example: 1640995200
+                  version:
+                    type: string
+                    example: "1.0.0"
+                  uptime_seconds:
+                    type: integer
+                    example: 3600
+
+  /api/v1/auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Register new user
+      description: |
+        Create a new user account and receive access token.
+        - Username must be at least 3 characters
+        - Password must be at least 6 characters
+        - Default role is 'user'
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                  minLength: 3
+                  example: john_doe
+                  description: Username (minimum 3 characters)
+                password:
+                  type: string
+                  format: password
+                  minLength: 6
+                  example: secure_password_123
+                  description: Password (minimum 6 characters)
+                role:
+                  type: string
+                  enum: [user, admin]
+                  default: user
+                  example: user
+                  description: User role (optional, defaults to 'user')
+      responses:
+        '201':
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "User registered successfully"
+                  access_token:
+                    type: string
+                    example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                  token_type:
+                    type: string
+                    example: Bearer
+                  expires_in:
+                    type: integer
+                    description: Token lifetime in seconds
+                    example: 3600
+                  user:
+                    type: object
+                    properties:
+                      username:
+                        type: string
+                        example: john_doe
+                      role:
+                        type: string
+                        example: user
+        '400':
+          description: Invalid request (username too short, weak password, etc.)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Weak password"
+                  message:
+                    type: string
+                    example: "Password must be at least 6 characters long"
+        '409':
+          description: Username already exists
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Registration failed"
+                  message:
+                    type: string
+                    example: "Username already exists"
+
+  /api/v1/auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: User login (OAuth2)
+      description: |
+        Authenticate user and receive OAuth2-compatible access token.
+        Returns JWT token in Bearer format.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                  example: admin
+                  description: User's username
+                password:
+                  type: string
+                  format: password
+                  example: admin123
+                  description: User's password
+      responses:
+        '200':
+          description: Login successful (OAuth2 format)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                    example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                    description: JWT access token
+                  token_type:
+                    type: string
+                    example: Bearer
+                    description: Token type (always "Bearer")
+                  expires_in:
+                    type: integer
+                    example: 3600
+                    description: Token lifetime in seconds (1 hour)
+                  user:
+                    type: object
+                    properties:
+                      username:
+                        type: string
+                        example: admin
+                      role:
+                        type: string
+                        example: admin
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Authentication failed"
+                  message:
+                    type: string
+                    example: "Invalid username or password"
+        '400':
+          description: Bad request (missing fields)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Invalid request"
+                  message:
+                    type: string
+                    example: "Username and password are required"
+
+  /api/v1/auth/refresh:
+    post:
+      tags:
+        - Authentication
+      summary: Refresh access token
+      description: |
+        Refresh the current access token before it expires.
+        The old token will be revoked and a new one will be issued.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                    example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                    description: New JWT access token
+                  token_type:
+                    type: string
+                    example: Bearer
+                  expires_in:
+                    type: integer
+                    example: 3600
+                    description: Token lifetime in seconds
+        '401':
+          description: Invalid or expired token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Invalid token"
+                  message:
+                    type: string
+                    example: "Token is expired or invalid"
+
+  /api/v1/auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: Logout user
+      description: |
+        Revoke the current access token and logout the user.
+        After logout, the token will no longer be valid.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Logged out successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Logged out successfully"
+        '401':
+          description: No token provided or invalid format
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "No token provided"
+                  message:
+                    type: string
+                    example: "Authorization header is missing"
+
+  /api/v1/auth/me:
+    get:
+      tags:
+        - Authentication
+      summary: Get current user info
+      description: |
+        Get information about the currently authenticated user.
+        Requires valid Bearer token in Authorization header.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User information retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  username:
+                    type: string
+                    example: john_doe
+                  role:
+                    type: string
+                    example: user
+                  is_active:
+                    type: boolean
+                    example: true
+                  created_at:
+                    type: integer
+                    format: int64
+                    description: Unix timestamp of account creation
+                    example: 1699459200
+                  last_login:
+                    type: integer
+                    format: int64
+                    description: Unix timestamp of last login
+                    example: 1699545600
+        '404':
+          description: User not found (invalid token)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "User not found"
+                  message:
+                    type: string
+                    example: "Invalid or expired token"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/files:
+    get:
+      tags:
+        - Files
+      summary: List files and directories
+      description: Get a list of files and directories in the specified path
+      parameters:
+        - name: path
+          in: query
+          description: Directory path to list (default is root)
+          required: false
+          schema:
+            type: string
+            example: "/documents"
+        - name: page
+          in: query
+          description: Page number for pagination
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: Number of items per page
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: sort
+          in: query
+          description: Sort field
+          required: false
+          schema:
+            type: string
+            enum: [name, size, date]
+            default: name
+        - name: order
+          in: query
+          description: Sort order
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: asc
+      responses:
+        '200':
+          description: File list retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      files:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/FileInfo'
+                      count:
+                        type: integer
+                        example: 10
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/files/upload:
+    post:
+      tags:
+        - Files
+      summary: Upload file
+      description: Upload a file to the server
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: File to upload
+                path:
+                  type: string
+                  description: Target path for the file
+                  example: "/documents/report.pdf"
+                overwrite:
+                  type: boolean
+                  description: Whether to overwrite existing file
+                  default: false
+      responses:
+        '201':
+          description: File uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "File uploaded successfully"
+                  data:
+                    type: object
+                    properties:
+                      file:
+                        $ref: '#/components/schemas/FileInfo'
+        '400':
+          description: Bad request (no file, invalid format, etc.)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: File already exists (when overwrite=false)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '413':
+          description: File too large
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '415':
+          description: Unsupported file type
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/files/download/{path}:
+    get:
+      tags:
+        - Files
+      summary: Download file
+      description: Download a file from the server
+      parameters:
+        - name: path
+          in: path
+          required: true
+          description: Path to the file to download
+          schema:
+            type: string
+            example: "documents/report.pdf"
+      responses:
+        '200':
+          description: File content
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+          headers:
+            Content-Disposition:
+              description: Attachment filename
+              schema:
+                type: string
+                example: 'attachment; filename="report.pdf"'
+            Content-Type:
+              description: File MIME type
+              schema:
+                type: string
+                example: application/pdf
+            Content-Length:
+              description: File size in bytes
+              schema:
+                type: integer
+                example: 1024000
+        '404':
+          description: File not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/files/{path}:
+    delete:
+      tags:
+        - Files
+      summary: Delete file or directory
+      description: Delete a file or directory from the server
+      parameters:
+        - name: path
+          in: path
+          required: true
+          description: Path to the file or directory to delete
+          schema:
+            type: string
+            example: "documents/old_report.pdf"
+        - name: recursive
+          in: query
+          description: Recursively delete directory contents
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: File deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "File deleted successfully"
+        '404':
+          description: File not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '400':
+          description: Cannot delete non-empty directory without recursive=true
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/files/move:
+    put:
+      tags:
+        - Files
+      summary: Move or rename file
+      description: Move or rename a file or directory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - source
+                - destination
+              properties:
+                source:
+                  type: string
+                  description: Source path
+                  example: "/documents/old_name.pdf"
+                destination:
+                  type: string
+                  description: Destination path
+                  example: "/documents/new_name.pdf"
+                overwrite:
+                  type: boolean
+                  description: Whether to overwrite existing file
+                  default: false
+      responses:
+        '200':
+          description: File moved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "File moved successfully"
+                  data:
+                    type: object
+                    properties:
+                      old_path:
+                        type: string
+                        example: "/documents/old_name.pdf"
+                      new_path:
+                        type: string
+                        example: "/documents/new_name.pdf"
+        '404':
+          description: Source file not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Destination already exists (when overwrite=false)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/search:
+    get:
+      tags:
+        - Files
+      summary: Search files
+      description: Search for files by name or content
+      parameters:
+        - name: query
+          in: query
+          required: true
+          description: Search query
+          schema:
+            type: string
+            example: "report"
+        - name: path
+          in: query
+          description: Path to search in (default is root)
+          required: false
+          schema:
+            type: string
+            example: "/documents"
+        - name: type
+          in: query
+          description: Search type
+          required: false
+          schema:
+            type: string
+            enum: [name, content, both]
+            default: name
+        - name: page
+          in: query
+          description: Page number for pagination
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: Number of results per page
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      results:
+                        type: array
+                        items:
+                          allOf:
+                            - $ref: '#/components/schemas/FileInfo'
+                            - type: object
+                              properties:
+                                relevance_score:
+                                  type: number
+                                  format: float
+                                  example: 0.95
+                                match_type:
+                                  type: string
+                                  enum: [name, content]
+                                  example: name
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+        '400':
+          description: Invalid search query
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    User:
+      type: object
+      properties:
+        username:
+          type: string
+          example: admin
+        role:
+          type: string
+          example: admin
+        created_at:
+          type: string
+          format: date-time
+          example: "2024-01-01T10:00:00Z"
+        last_login:
+          type: string
+          format: date-time
+          example: "2024-01-01T11:30:00Z"
+
+    FileInfo:
+      type: object
+      properties:
+        name:
+          type: string
+          description: File or directory name
+          example: "document.pdf"
+        path:
+          type: string
+          description: Full path to the file
+          example: "/documents/document.pdf"
+        size:
+          type: integer
+          format: int64
+          description: File size in bytes (0 for directories)
+          example: 1024000
+        mime_type:
+          type: string
+          description: MIME type of the file
+          example: "application/pdf"
+        is_directory:
+          type: boolean
+          description: Whether this is a directory
+          example: false
+        created_at:
+          type: string
+          format: date-time
+          description: File creation timestamp
+          example: "2024-01-01T10:00:00Z"
+        modified_at:
+          type: string
+          format: date-time
+          description: Last modification timestamp
+          example: "2024-01-01T11:00:00Z"
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          description: Current page number
+          example: 1
+        limit:
+          type: integer
+          description: Items per page
+          example: 20
+        total:
+          type: integer
+          description: Total number of items
+          example: 100
+        total_pages:
+          type: integer
+          description: Total number of pages
+          example: 5
+
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+          description: Error message
+          example: "File not found"
+        code:
+          type: string
+          description: Error code
+          example: "FILE_NOT_FOUND"
+        details:
+          type: object
+          description: Additional error details
+        timestamp:
+          type: string
+          format: date-time
+          example: "2024-01-01T12:00:00Z"
+
+  responses:
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error: "Authentication required"
+            code: "UNAUTHORIZED"
+
+    Forbidden:
+      description: Access denied
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error: "Access denied"
+            code: "FORBIDDEN"
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error: "Internal server error"
+            code: "INTERNAL_ERROR"
+
+  examples:
+    FileUploadSuccess:
+      summary: Successful file upload
+      value:
+        success: true
+        message: "File uploaded successfully"
+        data:
+          file:
+            name: "report.pdf"
+            path: "/documents/report.pdf"
+            size: 1024000
+            mime_type: "application/pdf"
+            is_directory: false
+            uploaded_at: "2024-01-01T12:00:00Z"
+
+    FileListSuccess:
+      summary: Successful file listing
+      value:
+        success: true
+        data:
+          files:
+            - name: "documents"
+              path: "/documents"
+              size: 0
+              mime_type: "inode/directory"
+              is_directory: true
+              modified_at: "2024-01-01T10:00:00Z"
+            - name: "report.pdf"
+              path: "/report.pdf"
+              size: 1024000
+              mime_type: "application/pdf"
+              is_directory: false
+              modified_at: "2024-01-01T11:00:00Z"
+          count: 2
+          pagination:
+            page: 1
+            limit: 50
+            total: 2
+            total_pages: 1
+
+tags:
+  - name: System
+    description: System health and monitoring endpoints
+  - name: Authentication
+    description: User authentication and authorization
+  - name: Files
+    description: File management operations
