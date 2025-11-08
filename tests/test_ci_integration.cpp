@@ -33,7 +33,7 @@ TEST_F(CIIntegrationTest, MathOperations) {
 }
 
 // Test that will always pass - for CI validation
-TEST(BasicTest, AlwaysPass) {
+TEST(CIValidationTest, AlwaysPass) {
     EXPECT_TRUE(true);
 }
 
