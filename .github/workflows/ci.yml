@@ -32,7 +32,6 @@ jobs:
           g++ \
           clang \
           libssl-dev \
-          postgresql-server-dev-all \
           pkg-config
 
     - name: Configure CMake
