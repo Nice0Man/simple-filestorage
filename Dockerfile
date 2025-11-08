@@ -47,10 +47,9 @@ COPY CMakeLists.txt .
 COPY src/ src/
 COPY tests/ tests/
 COPY include/ include/
-COPY config/ config/
 
-# Create build directory
-RUN mkdir -p build
+# Create build and config directories
+RUN mkdir -p build config
 
 # ================================
 # Stage 4: CMake Configuration
