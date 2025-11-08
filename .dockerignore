@@ -1,0 +1,132 @@
+# Docker ignore file for FileServer
+# Optimizes build context and speeds up builds
+
+# Build artifacts
+build/
+!build/bin/fileserver
+bin/
+obj/
+*.o
+*.a
+*.so
+*.dll
+*.exe
+
+# IDE and editor files
+.vscode/
+.vs/
+*.swp
+*.swo
+*~
+.idea/
+*.user
+*.suo
+*.vcxproj.user
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Version control
+.git/
+.gitignore
+.gitattributes
+.gitmodules
+
+# Documentation build artifacts
+docs/build/
+docs/_build/
+*.pdf
+
+# Logs and temporary files
+*.log
+logs/
+temp/
+tmp/
+*.tmp
+*.temp
+
+# Package manager files
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+.pytest_cache/
+
+# Docker files (except Dockerfile)
+docker-compose.override.yml
+.docker-cache/
+*.tar
+*.tar.gz
+
+# Test results
+test-results/
+coverage/
+*.coverage
+*.lcov
+
+# Configuration files with secrets
+.env
+.env.local
+.env.*.local
+secrets/
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Large media files
+*.mp4
+*.avi
+*.mov
+*.wmv
+*.flv
+*.webm
+*.mkv
+*.m4v
+*.3gp
+*.3g2
+*.iso
+*.dmg
+
+# Backup files
+*.bak
+*.backup
+*.old
+*~
+
+# Runtime files
+files/
+config/config.json
+config/users.json
+
+# Scripts that shouldn't be in container
+build_optimized.ps1
+build_and_run.ps1
+build_and_run.sh
+run_fileserver.ps1
+test_api.ps1
+test_api.sh
+
+# Documentation source (we copy specific files)
+README.md
+FINAL_STATUS.md
+SUCCESS_REPORT.md
+IMPLEMENTATION_REPORT.md
+
+# Keep only essential docs for runtime
+!docs/swagger.yaml
+!docs/swagger_ui.html
