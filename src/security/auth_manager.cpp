@@ -415,9 +415,18 @@ std::string AuthManager::generateToken(const std::string& username) const {
         auto now = std::chrono::system_clock::now();
         auto expires = now + token_lifetime_;
         
+        // Generate unique token ID to ensure tokens are always different
+        std::random_device rd;
+        std::mt19937 gen(rd());
+        std::uniform_int_distribution<uint64_t> dis;
+        std::string jti = std::to_string(dis(gen)) + std::to_string(
+            std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count()
+        );
+        
         auto token = jwt::create()
             .set_issuer("fileserver")
             .set_type("JWT")
+            .set_id(jti)  // Add unique JWT ID
             .set_issued_at(now)
             .set_expires_at(expires)
             .set_payload_claim("username", jwt::claim(username))
