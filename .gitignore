@@ -57,3 +57,15 @@ test-obj/
 
 # debug information files
 *.dwo
+
+.env
+.env.local
+.env.*.local
+secrets/
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Docker files
+docker/
