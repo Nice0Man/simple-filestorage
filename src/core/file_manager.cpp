@@ -229,6 +229,11 @@ bool FileManager::isPathSafe(const std::string& file_path) const {
         std::filesystem::path canonical_root = std::filesystem::canonical(root_directory_);
         std::filesystem::path canonical_path = std::filesystem::weakly_canonical(full_path);
         
+        // If paths are equal, it's the root directory itself - allow it
+        if (canonical_path == canonical_root) {
+            return true;
+        }
+        
         // Check if the canonical path is within the root directory
         auto relative = std::filesystem::relative(canonical_path, canonical_root);
         return !relative.empty() && relative.native()[0] != '.';

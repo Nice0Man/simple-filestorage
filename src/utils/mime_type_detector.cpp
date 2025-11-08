@@ -95,7 +95,7 @@ void MimeTypeDetector::initializeDefaultMimeTypes() {
         {"html", "text/html"},
         {"htm", "text/html"},
         {"css", "text/css"},
-        {"js", "text/javascript"},
+        {"js", "application/javascript"},
         {"json", "application/json"},
         {"xml", "application/xml"},
         {"csv", "text/csv"},

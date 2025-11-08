@@ -43,6 +43,13 @@ jobs:
     - name: Build
       run: cmake --build build --config ${{ matrix.build_type }} -j$(nproc)
 
+    - name: Setup test environment
+      run: |
+        mkdir -p test_files
+        echo "test content 1" > test_files/file1.txt
+        echo "test content 2" > test_files/file2.txt  
+        echo "test content 3" > test_files/file3.pdf
+
     - name: Run tests
       run: |
         cd build
