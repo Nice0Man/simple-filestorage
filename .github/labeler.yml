@@ -1,0 +1,47 @@
+# Labels for automatic PR labeling
+
+'C: Core':
+  - 'src/core/**/*'
+  - 'include/core/**/*'
+
+'C: API':
+  - 'src/api/**/*'
+  - 'include/api/**/*'
+
+'C: Security':
+  - 'src/security/**/*'
+  - 'include/security/**/*'
+
+'C: Database':
+  - 'src/database/**/*'
+  - 'include/database/**/*'
+
+'C: Utils':
+  - 'src/utils/**/*'
+  - 'include/utils/**/*'
+
+'T: Tests':
+  - 'tests/**/*'
+
+'T: Documentation':
+  - 'docs/**/*'
+  - '*.md'
+  - 'README.md'
+
+'T: Build':
+  - 'CMakeLists.txt'
+  - 'cmake/**/*'
+  - 'Makefile'
+  - 'Dockerfile'
+  - '.dockerignore'
+
+'T: CI/CD':
+  - '.github/**/*'
+  - '.pre-commit-config.yaml'
+
+'T: Scripts':
+  - 'scripts/**/*'
+
+'T: Dependencies':
+  - 'third_party/**/*'
+

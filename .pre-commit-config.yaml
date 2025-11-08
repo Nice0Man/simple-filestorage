@@ -1,0 +1,74 @@
+repos:
+  # General file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: ^(.*\.md|.*\.txt)$
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+        args: ['--maxkb=1024']
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: mixed-line-ending
+        args: ['--fix=lf']
+      - id: check-executables-have-shebangs
+      - id: check-json
+
+  # C++ formatting
+  - repo: https://github.com/pre-commit/mirrors-clang-format
+    rev: v18.1.8
+    hooks:
+      - id: clang-format
+        types_or: [c++, c]
+        args: ['-i']
+
+  # CMake formatting
+  - repo: https://github.com/cheshirekow/cmake-format-precommit
+    rev: v0.6.13
+    hooks:
+      - id: cmake-format
+        args: ['--in-place']
+      - id: cmake-lint
+        args: ['--disabled-codes', 'C0113']
+
+  # C++ linting with cppcheck
+  - repo: https://github.com/pocc/pre-commit-hooks
+    rev: v1.3.5
+    hooks:
+      - id: cppcheck
+        args: [
+          '--enable=warning,style,performance,portability',
+          '--suppress=missingIncludeSystem',
+          '--suppress=unusedFunction',
+          '--inline-suppr',
+          '--error-exitcode=1'
+        ]
+        exclude: ^(tests/|third_party/)
+
+  # Check for common C++ issues
+  - repo: local
+    hooks:
+      - id: check-includes
+        name: Check include guards
+        entry: bash -c 'for f in "$@"; do grep -q "#pragma once\|#ifndef.*_H" "$f" || (echo "Missing include guard in $f" && exit 1); done' --
+        language: system
+        files: '\.(h|hpp)$'
+        exclude: ^third_party/
+
+      - id: no-debug-prints
+        name: Check for debug prints
+        entry: bash -c 'for f in "$@"; do grep -n "std::cout\|printf" "$f" && echo "Found debug print in $f" && exit 1 || true; done' --
+        language: system
+        files: '\.(cpp|cc|cxx)$'
+        exclude: ^(tests/|examples/)
+
+  # Security checks
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.4.0
+    hooks:
+      - id: detect-secrets
+        args: ['--baseline', '.secrets.baseline']
+        exclude: package.lock.json
+

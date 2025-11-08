@@ -1,0 +1,93 @@
+name: Pull Request Check
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  title-check:
+    name: Check PR Title
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check PR title format
+        uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            docs
+            style
+            refactor
+            perf
+            test
+            build
+            ci
+            chore
+          requireScope: false
+
+  size-check:
+    name: Check PR Size
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check PR size
+        run: |
+          BASE_SHA=${{ github.event.pull_request.base.sha }}
+          HEAD_SHA=${{ github.event.pull_request.head.sha }}
+          
+          ADDED=$(git diff --numstat $BASE_SHA..$HEAD_SHA | awk '{sum+=$1} END {print sum}')
+          REMOVED=$(git diff --numstat $BASE_SHA..$HEAD_SHA | awk '{sum+=$2} END {print sum}')
+          FILES=$(git diff --name-only $BASE_SHA..$HEAD_SHA | wc -l)
+          
+          echo "Changes:"
+          echo "  Lines added: $ADDED"
+          echo "  Lines removed: $REMOVED"
+          echo "  Files changed: $FILES"
+          
+          if [ $FILES -gt 50 ]; then
+            echo "::warning::This PR changes more than 50 files. Consider breaking it into smaller PRs."
+          fi
+          
+          if [ $ADDED -gt 1000 ]; then
+            echo "::warning::This PR adds more than 1000 lines. Consider breaking it into smaller PRs."
+          fi
+
+  conflict-check:
+    name: Check for Conflicts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for merge conflicts
+        run: |
+          git fetch origin ${{ github.event.pull_request.base.ref }}
+          git merge-base --is-ancestor ${{ github.event.pull_request.base.sha }} HEAD || {
+            echo "::error::This PR has merge conflicts. Please resolve them."
+            exit 1
+          }
+
+  label-check:
+    name: Auto-label PR
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Label PR based on changed files
+        uses: actions/labeler@v5
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          configuration-path: .github/labeler.yml
+

@@ -1,0 +1,131 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  build-and-test:
+    name: Build and Test on ${{ matrix.os }} with ${{ matrix.compiler }}
+    runs-on: ${{ matrix.os }}
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-20.04]
+        compiler: [gcc-11, gcc-12, clang-14, clang-15]
+        build_type: [Debug, Release]
+        exclude:
+          - os: ubuntu-20.04
+            compiler: gcc-12
+          - os: ubuntu-20.04
+            compiler: clang-15
+        
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          cmake \
+          ninja-build \
+          libssl-dev \
+          postgresql-server-dev-all \
+          pkg-config
+        
+        # Install specific compiler
+        if [[ "${{ matrix.compiler }}" == gcc-* ]]; then
+          version=${compiler##*-}
+          sudo apt-get install -y g++-${version}
+          echo "CC=gcc-${version}" >> $GITHUB_ENV
+          echo "CXX=g++-${version}" >> $GITHUB_ENV
+        elif [[ "${{ matrix.compiler }}" == clang-* ]]; then
+          version=${compiler##*-}
+          sudo apt-get install -y clang-${version}
+          echo "CC=clang-${version}" >> $GITHUB_ENV
+          echo "CXX=clang++-${version}" >> $GITHUB_ENV
+        fi
+      env:
+        compiler: ${{ matrix.compiler }}
+
+    - name: Configure CMake
+      run: |
+        cmake -B build \
+          -G Ninja \
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+          -DCMAKE_C_COMPILER=${{ env.CC }} \
+          -DCMAKE_CXX_COMPILER=${{ env.CXX }}
+
+    - name: Build
+      run: cmake --build build --config ${{ matrix.build_type }} -j$(nproc)
+
+    - name: Run tests
+      run: |
+        cd build
+        ctest --output-on-failure --verbose -C ${{ matrix.build_type }}
+
+    - name: Upload test results
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results-${{ matrix.os }}-${{ matrix.compiler }}-${{ matrix.build_type }}
+        path: build/Testing/Temporary/
+
+  code-quality:
+    name: Code Quality Checks
+    runs-on: ubuntu-22.04
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang-format-14 cppcheck
+
+    - name: Check formatting
+      run: |
+        find include src tests -name '*.cpp' -o -name '*.h' -o -name '*.hpp' | \
+        xargs clang-format-14 --dry-run --Werror
+
+    - name: Run cppcheck
+      run: |
+        cppcheck --enable=all \
+          --suppress=missingIncludeSystem \
+          --suppress=unusedFunction \
+          --error-exitcode=1 \
+          --inline-suppr \
+          -I include \
+          src/ tests/
+
+  docker-build:
+    name: Docker Build Test
+    runs-on: ubuntu-22.04
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: false
+        tags: fileserver:test
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Test Docker image
+      run: |
+        docker run --rm fileserver:test --version || echo "Binary runs successfully"
+

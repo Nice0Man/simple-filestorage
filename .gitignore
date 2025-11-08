@@ -4,8 +4,8 @@ build/
 bin/
 obj/
 lib/
-include/
-src/
+
+# Test artifacts
 test/
 test-bin/
 test-lib/
@@ -15,6 +15,10 @@ test-slo/
 test-lo/
 test-o/
 test-obj/
+
+# Pre-commit
+.pre-commit-cache/
+.secrets.baseline
 # Compiled Object files
 *.slo
 *.lo
