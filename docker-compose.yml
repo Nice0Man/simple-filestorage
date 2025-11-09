@@ -1,0 +1,103 @@
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:16-alpine
+    container_name: fileserver-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-fileserver}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fileserver123}
+      POSTGRES_DB: ${POSTGRES_DB:-fileserver}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fileserver}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - fileserver-network
+
+  # C++ Backend Server
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: final-production
+      args:
+        BUILD_DATE: ${BUILD_DATE:-2024-01-01}
+        VCS_REF: ${VCS_REF:-unknown}
+    image: fileserver:latest
+    container_name: fileserver-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - CONFIG_PATH=/app/config/config.json
+      - SERVER_PORT=${SERVER_PORT:-8080}
+      - SERVER_HOST=${SERVER_HOST:-0.0.0.0}
+      - STORAGE_ROOT=${STORAGE_ROOT:-/app/files}
+      - MAX_FILE_SIZE=${MAX_FILE_SIZE:-104857600}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-default-secret-key-change-me}
+      - TOKEN_LIFETIME=${TOKEN_LIFETIME:-24}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://fileserver:fileserver123@db:5432/fileserver}
+    volumes:
+      - files_data:/app/files
+      - config_data:/app/config
+      - logs_data:/app/logs
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - fileserver-network
+
+  # React Frontend Client
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8080/api/v1}
+    image: fileserver-client:latest
+    container_name: fileserver-frontend
+    restart: unless-stopped
+    depends_on:
+      server:
+        condition: service_healthy
+    environment:
+      - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:8080/api/v1}
+    ports:
+      - "80:80"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - fileserver-network
+
+networks:
+  fileserver-network:
+    driver: bridge
+    name: fileserver-network
+
+volumes:
+  postgres_data:
+    name: fileserver-postgres-data
+  files_data:
+    name: fileserver-files
+  config_data:
+    name: fileserver-config
+  logs_data:
+    name: fileserver-logs

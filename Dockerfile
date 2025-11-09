@@ -150,7 +150,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8080/health || exit 1
 
 # Default command
-CMD ["./fileserver", "-c", "/app/config/config.json"]
+CMD ["/app/fileserver"]
 
 # ================================
 # Production stage configuration (shared)
@@ -166,7 +166,7 @@ RUN echo '{\
     "timeout_seconds": 30\
   },\
   "database": {\
-    "host": "postgres",\
+    "host": "db",\
     "port": 5432,\
     "name": "fileserver",\
     "username": "fileserver",\
@@ -174,7 +174,7 @@ RUN echo '{\
     "min_connections": 5,\
     "max_connections": 20,\
     "enable_ssl": false,\
-    "connection_timeout_seconds": 10\
+    "connection_timeout_seconds": 30\
   },\
   "security": {\
     "jwt_secret": "your-super-secret-jwt-key-change-in-production",\
@@ -209,7 +209,7 @@ RUN echo '{\
     },\
     {\
       "username": "user",\
-      "password_hash": "04f8996da763b7a969b1028ee3007569eaf3a635486ddab211d512c85b9df8fb",\
+      "password_hash": "e606e38b0d8c19b24cf0ee3808183162ea7cd63ff7912dbb22b5e803286b4446",\
       "salt": "",\
       "role": "user",\
       "email": "user@fileserver.local"\
@@ -230,12 +230,12 @@ WORKDIR /app
 # Expose port
 EXPOSE 8080
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+# Health check - give app more time to start and connect to DB
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:8080/health || exit 1
 
 # Default command
-CMD ["./fileserver", "-c", "/app/config/config.json"]
+CMD ["/app/fileserver"]
 
 # ================================
 # Build Arguments and Labels

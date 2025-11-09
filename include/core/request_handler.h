@@ -210,6 +210,12 @@ private:
     void handleNotFound(HttpResponse& response) const;
     void handleMethodNotAllowed(HttpResponse& response) const;
     void handleInternalError(HttpResponse& response, const std::string& error) const;
+    
+    // Logging helpers
+    std::string getClientIP(const HttpRequest& request) const;
+    void logRequest(const HttpRequest& request) const;
+    void logResponse(const HttpRequest& request, const HttpResponse& response, 
+                     long long duration_ms) const;
 };
 
 } // namespace core
