@@ -12,13 +12,13 @@ class ApiClient {
     });
 
     this.client.interceptors.request.use((config) => {
-      // Get token from localStorage (managed by Zustand persist)
+      // Get token from localStorage (managed by AuthContext)
       const authStorage = localStorage.getItem('auth-storage');
       if (authStorage) {
         try {
-          const { state } = JSON.parse(authStorage);
-          if (state?.token) {
-            config.headers.Authorization = `Bearer ${state.token}`;
+          const authData = JSON.parse(authStorage);
+          if (authData?.token) {
+            config.headers.Authorization = `Bearer ${authData.token}`;
           }
         } catch (error) {
           console.error('Failed to parse auth storage:', error);
@@ -31,16 +31,22 @@ class ApiClient {
       (response) => response,
       async (error) => {
         if (error.response?.status === 401) {
-          // Import dynamically to avoid circular dependency
-          const { useAuthStore } = await import('../model/auth.store');
-          useAuthStore.getState().logout();
-          
+          // Clear auth data from localStorage
+          localStorage.removeItem('auth-storage');
+
           // Redirect to login page
           if (window.location.pathname !== '/login') {
             window.location.href = '/login';
           }
         }
-        return Promise.reject(error);
+
+        // Extract error message from response
+        const errorMessage = error.response?.data?.error ||
+          error.response?.data?.message ||
+          error.message ||
+          'An error occurred';
+
+        return Promise.reject(new Error(errorMessage));
       }
     );
   }

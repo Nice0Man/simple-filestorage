@@ -6,7 +6,7 @@ import { loginSchema, type LoginFormData } from '../../../shared/lib/validation'
 import { sanitizeText } from '../../../shared/lib/sanitize';
 import { Input } from '../../../shared/ui/Input';
 import { Button } from '../../../shared/ui/Button';
-import { useAuthStore } from '../../../shared/model/auth.store';
+import { useAuth } from '../../../shared/context/AuthContext';
 import { toast } from '../../../shared/model/toast.store';
 import { authApi } from '../../../shared/api/auth.api';
 import { ROUTES } from '../../../shared/config/routes.config';
@@ -14,7 +14,7 @@ import { ROUTES } from '../../../shared/config/routes.config';
 export function LoginForm() {
     const { t } = useTranslation();
     const navigate = useNavigate();
-    const { setUser, setToken } = useAuthStore();
+    const { login } = useAuth();
 
     const {
         register,
@@ -33,8 +33,7 @@ export function LoginForm() {
             };
 
             const response = await authApi.login(sanitizedData);
-            setUser(response.user);
-            setToken(response.token);
+            login(response.user, response.access_token);
             toast.success(t('auth.loginSuccess'), `Welcome, ${response.user.username}!`);
             navigate(ROUTES.FILES);
         } catch (error) {

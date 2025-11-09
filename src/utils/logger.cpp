@@ -134,7 +134,9 @@ void Logger::setMinLevel(LogLevel level) {
 
 void Logger::close() {
     if (initialized_) {
-        spdlog::shutdown();
+        // Simply mark as uninitialized
+        // Don't interact with spdlog during shutdown to avoid use-after-free
+        // spdlog will clean up its own resources via its destructors
         initialized_ = false;
     }
 }

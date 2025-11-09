@@ -80,28 +80,45 @@ export function FileUploader({ onUploadSuccess }: FileUploaderProps) {
     };
 
     return (
-        <div className="space-y-2">
-            <div className="flex items-center space-x-2">
-                <div className="flex-1">
-                    <Input
-                        type="file"
-                        onChange={handleFileChange}
-                        disabled={isUploading}
-                        className={validationError ? 'border-destructive' : ''}
-                    />
-                    {validationError && (
-                        <p className="text-sm text-destructive mt-1">{validationError}</p>
-                    )}
-                    {file && !validationError && (
-                        <p className="text-sm text-muted-foreground mt-1">
-                            {file.name} ({(file.size / 1024).toFixed(2)} KB)
-                        </p>
-                    )}
+        <div className="rounded-lg border-2 border-dashed border-border bg-muted/20 p-6 hover:border-primary/50 transition-colors">
+            <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="flex-1">
+                        <Input
+                            type="file"
+                            onChange={handleFileChange}
+                            disabled={isUploading}
+                            className={`${validationError ? 'border-destructive' : 'hover:border-primary'} transition-colors cursor-pointer`}
+                        />
+                    </div>
+                    <Button 
+                        onClick={handleUpload} 
+                        disabled={!file || isUploading || !!validationError}
+                        className="w-full sm:w-auto min-w-[120px] font-medium"
+                        size="default"
+                    >
+                        <Upload className="h-4 w-4 mr-2" />
+                        {isUploading ? t('common.loading') : t('files.upload')}
+                    </Button>
                 </div>
-                <Button onClick={handleUpload} disabled={!file || isUploading || !!validationError}>
-                    <Upload className="h-4 w-4 mr-2" />
-                    {isUploading ? t('common.loading') : t('files.upload')}
-                </Button>
+                {validationError && (
+                    <div className="flex items-start gap-2 p-3 rounded-md bg-destructive/10 border border-destructive/20">
+                        <svg className="w-5 h-5 text-destructive shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <p className="text-sm text-destructive font-medium">{validationError}</p>
+                    </div>
+                )}
+                {file && !validationError && (
+                    <div className="flex items-center gap-2 p-3 rounded-md bg-primary/10 border border-primary/20">
+                        <svg className="w-5 h-5 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <p className="text-sm text-primary font-medium">
+                        Selected: {file.name} ({(file.size / 1024).toFixed(2)} KB)
+                    </p>
+                    </div>
+                )}
             </div>
         </div>
     );

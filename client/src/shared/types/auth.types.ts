@@ -12,9 +12,9 @@ export interface LoginRequest {
 }
 
 export interface LoginResponse {
-  success: boolean;
-  token: string;
-  expires_at: string;
+  access_token: string;
+  expires_in: number;
+  token_type: string;
   user: User;
 }
 

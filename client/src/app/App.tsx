@@ -1,7 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { useAuthStore } from '../shared/model/auth.store';
-import { useLoaderStore } from '../shared/model/loader.store';
+import { useAuth } from '../shared/context/AuthContext';
+import { useLoader } from '../shared/context/LoaderContext';
 import { ROUTES } from '../shared/config/routes.config';
 import { Header } from '../widgets/ui/Header';
 import { GlobalLoader } from '../shared/ui/GlobalLoader';
@@ -10,44 +10,77 @@ import { CardSkeleton } from '../shared/ui/Skeleton';
 // Lazy load pages for code splitting
 const LoginPage = lazy(() => import('../pages/ui/LoginPage'));
 const FilesPage = lazy(() => import('../pages/ui/FilesPage'));
+const ProfilePage = lazy(() => import('../pages/ui/ProfilePage'));
+const AdminPage = lazy(() => import('../pages/ui/AdminPage'));
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated } = useAuth();
   return isAuthenticated ? <>{children}</> : <Navigate to={ROUTES.LOGIN} />;
 }
 
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, user } = useAuth();
+  
+  if (!isAuthenticated) {
+    return <Navigate to={ROUTES.LOGIN} />;
+  }
+  
+  if (user?.role !== 'admin') {
+    return <Navigate to={ROUTES.FILES} />;
+  }
+  
+  return <>{children}</>;
+}
+
 function App() {
-  const { isAuthenticated } = useAuthStore();
-  const { isLoading } = useLoaderStore();
+  const { isAuthenticated } = useAuth();
+  const { isLoading } = useLoader();
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background text-foreground transition-colors duration-200">
       <GlobalLoader isLoading={isLoading} />
       {isAuthenticated && <Header />}
       <Suspense
         fallback={
-          <div className="container py-8">
+          <div className="container mx-auto py-8 px-4">
             <CardSkeleton />
           </div>
         }
       >
-        <Routes>
-          <Route path={ROUTES.LOGIN} element={<LoginPage />} />
+      <Routes>
+        <Route path={ROUTES.LOGIN} element={<LoginPage />} />
+        <Route
+          path={ROUTES.FILES}
+          element={
+            <ProtectedRoute>
+              <FilesPage />
+            </ProtectedRoute>
+          }
+        />
           <Route
-            path={ROUTES.FILES}
+            path={ROUTES.PROFILE}
             element={
               <ProtectedRoute>
-                <FilesPage />
+                <ProfilePage />
               </ProtectedRoute>
             }
           />
           <Route
-            path={ROUTES.HOME}
+            path={ROUTES.ADMIN}
             element={
-              isAuthenticated ? <Navigate to={ROUTES.FILES} /> : <Navigate to={ROUTES.LOGIN} />
+              <AdminRoute>
+                <AdminPage />
+              </AdminRoute>
             }
           />
-        </Routes>
+        <Route
+          path={ROUTES.HOME}
+          element={
+            isAuthenticated ? <Navigate to={ROUTES.FILES} /> : <Navigate to={ROUTES.LOGIN} />
+          }
+        />
+          <Route path="*" element={<Navigate to={ROUTES.HOME} />} />
+      </Routes>
       </Suspense>
     </div>
   );

@@ -3,6 +3,9 @@
 
 .PHONY: help up down restart logs clean build-images rebuild status
 .PHONY: backend-logs frontend-logs db-logs db-shell setup stop
+.PHONY: test valgrind valgrind-full memcheck install-valgrind
+.PHONY: build-local build-libs build-release build-debug clean-build
+.PHONY: docker-local docker-remote install-local
 
 # Configuration
 PROJECT_NAME := fileserver
@@ -44,6 +47,26 @@ help:
 	@echo ""
 	@echo "$(COLOR_GREEN)Setup:$(COLOR_RESET)"
 	@echo "  make setup          - Initial setup (create directories, .env)"
+	@echo ""
+	@echo "$(COLOR_GREEN)Local Build Commands:$(COLOR_RESET)"
+	@echo "  make build-local    - Quick incremental build (FAST)"
+	@echo "  make build-release  - Full clean release build"
+	@echo "  make build-debug    - Build debug version"
+	@echo "  make build-libs     - Build only libraries"
+	@echo "  make clean-build    - Clean build directory"
+	@echo "  make install-local  - Install binary to /usr/local/bin"
+	@echo ""
+	@echo "$(COLOR_GREEN)Docker Build Commands:$(COLOR_RESET)"
+	@echo "  make docker-local       - Docker with existing binary (FASTEST)"
+	@echo "  make docker-local-fresh - Docker with fresh build"
+	@echo "  make docker-remote      - Docker full remote build (slowest)"
+	@echo ""
+	@echo "$(COLOR_GREEN)Testing Commands:$(COLOR_RESET)"
+	@echo "  make test           - Run all unit tests"
+	@echo "  make valgrind       - Run Valgrind memory leak tests"
+	@echo "  make valgrind-full  - Full Valgrind check on main binary"
+	@echo "  make memcheck       - Alias for valgrind"
+	@echo "  make install-valgrind - Install Valgrind tool"
 	@echo ""
 	@echo "$(COLOR_BLUE)Services will be available at:$(COLOR_RESET)"
 	@echo "  Backend:  http://localhost:8080"
@@ -137,6 +160,120 @@ down:
 
 # Stop all services (alias)
 stop: down
+
+# ==============================================================================
+# Local Build Commands
+# ==============================================================================
+
+# Build locally (release mode) - FAST incremental
+build-local:
+	@echo "$(COLOR_BLUE)Quick incremental build...$(COLOR_RESET)"
+	@./scripts/quick_build.sh
+	@echo "$(COLOR_GREEN)✓ Local build completed!$(COLOR_RESET)"
+	@echo "Binary: build/bin/fileserver"
+
+# Build release version (full clean build)
+build-release:
+	@echo "$(COLOR_BLUE)Building Release version (full)...$(COLOR_RESET)"
+	@rm -rf build
+	@mkdir -p build
+	@cd build && \
+		cmake -DCMAKE_BUILD_TYPE=Release \
+			  -DCMAKE_CXX_FLAGS_RELEASE="-O2 -DNDEBUG" .. && \
+		make -j$$(nproc)
+	@echo "$(COLOR_GREEN)✓ Release build completed$(COLOR_RESET)"
+
+# Build debug version
+build-debug:
+	@echo "$(COLOR_BLUE)Building Debug version...$(COLOR_RESET)"
+	@mkdir -p build
+	@cd build && \
+		cmake -DCMAKE_BUILD_TYPE=Debug \
+			  -DCMAKE_CXX_FLAGS_DEBUG="-g -O0 -fno-omit-frame-pointer" .. && \
+		make -j$$(nproc)
+	@echo "$(COLOR_GREEN)✓ Debug build completed$(COLOR_RESET)"
+
+# Build only libraries
+build-libs:
+	@echo "$(COLOR_BLUE)Building libraries...$(COLOR_RESET)"
+	@mkdir -p build
+	@cd build && \
+		cmake -DCMAKE_BUILD_TYPE=Release .. && \
+		make -j$$(nproc) fileserver_utils fileserver_database fileserver_security fileserver_core
+	@echo "$(COLOR_GREEN)✓ Libraries built$(COLOR_RESET)"
+	@ls -lh build/lib/
+
+# Clean build directory
+clean-build:
+	@echo "$(COLOR_YELLOW)Cleaning build directory...$(COLOR_RESET)"
+	@rm -rf build build_test
+	@echo "$(COLOR_GREEN)✓ Build directory cleaned$(COLOR_RESET)"
+
+# Install binary locally
+install-local: build-release
+	@echo "$(COLOR_BLUE)Installing fileserver...$(COLOR_RESET)"
+	@sudo install -m 755 build/bin/fileserver /usr/local/bin/
+	@sudo mkdir -p /etc/fileserver
+	@sudo cp -n config/server.json /etc/fileserver/config.json 2>/dev/null || true
+	@echo "$(COLOR_GREEN)✓ Installed to /usr/local/bin/fileserver$(COLOR_RESET)"
+
+# Docker build with local binary (FAST - uses existing build)
+docker-local:
+	@echo "$(COLOR_BLUE)Building Docker image with local binary...$(COLOR_RESET)"
+	@if [ ! -f "build/bin/fileserver" ]; then \
+		echo "$(COLOR_YELLOW)No binary found, building first...$(COLOR_RESET)"; \
+		$(MAKE) build-local; \
+	fi
+	@$(DOCKER) build -f Dockerfile.local -t fileserver:local .
+	@echo "$(COLOR_GREEN)✓ Docker image built: fileserver:local$(COLOR_RESET)"
+
+# Docker build with fresh build
+docker-local-fresh: build-release docker-local
+
+# Docker build (full remote build)
+docker-remote:
+	@echo "$(COLOR_BLUE)Building Docker image (full build)...$(COLOR_RESET)"
+	@$(DOCKER) build -t fileserver:latest --target final-production .
+	@echo "$(COLOR_GREEN)✓ Docker image built: fileserver:latest$(COLOR_RESET)"
+
+# ==============================================================================
+# Testing & Memory Check
+# ==============================================================================
+
+# Install valgrind
+install-valgrind:
+	@echo "$(COLOR_BLUE)Installing valgrind...$(COLOR_RESET)"
+	@command -v valgrind >/dev/null 2>&1 && echo "$(COLOR_GREEN)✓ Valgrind already installed$(COLOR_RESET)" || \
+		(sudo apt-get update && sudo apt-get install -y valgrind && echo "$(COLOR_GREEN)✓ Valgrind installed$(COLOR_RESET)")
+
+# Run all tests
+test:
+	@echo "$(COLOR_BLUE)Running tests...$(COLOR_RESET)"
+	@mkdir -p build
+	@cd build && cmake -DCMAKE_BUILD_TYPE=Debug .. && make -j$$(nproc) && ctest --output-on-failure
+	@echo "$(COLOR_GREEN)✓ Tests completed$(COLOR_RESET)"
+
+# Run valgrind memory check on tests
+valgrind: install-valgrind
+	@echo "$(COLOR_BLUE)Running Valgrind memory leak tests...$(COLOR_RESET)"
+	@./scripts/valgrind_test.sh
+	@echo "$(COLOR_GREEN)✓ Valgrind tests completed$(COLOR_RESET)"
+
+# Run valgrind with full leak check on main binary
+valgrind-full: install-valgrind
+	@echo "$(COLOR_BLUE)Running full Valgrind check on main binary...$(COLOR_RESET)"
+	@mkdir -p build
+	@cd build && cmake -DCMAKE_BUILD_TYPE=Debug \
+		-DCMAKE_CXX_FLAGS_DEBUG="-g -O0 -fno-omit-frame-pointer" .. && make -j$$(nproc)
+	@./scripts/valgrind_test.sh build/fileserver
+	@echo "$(COLOR_GREEN)✓ Full valgrind check completed$(COLOR_RESET)"
+
+# Memory check alias
+memcheck: valgrind
+
+# ==============================================================================
+# Service Management
+# ==============================================================================
 
 # Restart all services
 restart:

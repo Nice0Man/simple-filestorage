@@ -7,8 +7,11 @@ export interface FileInfo {
 }
 
 export interface FileListResponse {
-  files: FileInfo[];
-  total: number;
+  success: boolean;
+  data: {
+    files: FileInfo[];
+    count: number;
+  };
 }
 
 export interface UploadFileResponse {

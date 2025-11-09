@@ -1,0 +1,142 @@
+# Valgrind Suppression File for FileServer
+# Suppress known false positives from third-party libraries
+
+# PostgreSQL libpq library
+{
+   libpq_init
+   Memcheck:Leak
+   ...
+   fun:PQconnectdb
+}
+
+{
+   libpq_connect
+   Memcheck:Leak
+   ...
+   obj:*/libpq.so*
+}
+
+{
+   libpq_ssl
+   Memcheck:Leak
+   ...
+   fun:SSL_*
+   ...
+   obj:*/libpq.so*
+}
+
+{
+   libpq_getaddrinfo
+   Memcheck:Leak
+   ...
+   fun:getaddrinfo
+   ...
+   obj:*/libpq.so*
+}
+
+# OpenSSL library
+{
+   openssl_init
+   Memcheck:Leak
+   ...
+   obj:*/libssl.so*
+}
+
+{
+   openssl_crypto
+   Memcheck:Leak
+   ...
+   obj:*/libcrypto.so*
+}
+
+{
+   openssl_rand
+   Memcheck:Leak
+   ...
+   fun:RAND_*
+}
+
+# C++ standard library
+{
+   stdcpp_locale
+   Memcheck:Leak
+   ...
+   fun:_Znwm
+   ...
+   fun:*locale*
+}
+
+{
+   stdcpp_iostream
+   Memcheck:Leak
+   ...
+   fun:_Znwm
+   ...
+   fun:*iostream*
+}
+
+# spdlog library
+{
+   spdlog_logger
+   Memcheck:Leak
+   ...
+   fun:_Znwm
+   ...
+   obj:*spdlog*
+}
+
+# jwt-cpp library
+{
+   jwt_init
+   Memcheck:Leak
+   ...
+   fun:_Znwm
+   ...
+   fun:*jwt*
+}
+
+# Thread initialization
+{
+   pthread_create
+   Memcheck:Leak
+   ...
+   fun:pthread_create*
+}
+
+{
+   thread_local_storage
+   Memcheck:Leak
+   ...
+   fun:*thread*
+}
+
+# Dynamic loader
+{
+   dlopen
+   Memcheck:Leak
+   ...
+   fun:dlopen*
+}
+
+{
+   dlsym
+   Memcheck:Leak
+   ...
+   fun:dlsym*
+}
+
+# Global constructors
+{
+   global_init
+   Memcheck:Leak
+   ...
+   fun:__static_initialization_and_destruction_0
+}
+
+{
+   cxa_atexit
+   Memcheck:Leak
+   ...
+   fun:__cxa_atexit
+}
+

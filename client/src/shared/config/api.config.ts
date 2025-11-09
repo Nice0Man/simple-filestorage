@@ -17,8 +17,8 @@ export const API_ENDPOINTS = {
   // Files
   FILES: {
     LIST: '/files',
-    UPLOAD: '/files',
-    DOWNLOAD: (filename: string) => `/files/${filename}`,
+    UPLOAD: '/files/upload',
+    DOWNLOAD: (filename: string) => `/files/download/${filename}`,
     DELETE: (filename: string) => `/files/${filename}`,
     INFO: (filename: string) => `/files/${filename}/info`,
   },
