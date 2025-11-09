@@ -1,4 +1,5 @@
 #include "security/auth_manager.h"
+#include "utils/logger.h"
 #include <fstream>
 #include <iostream>
 #include <random>
@@ -25,7 +26,8 @@ bool AuthManager::initialize(const std::string& users_file_path) {
     try {
         return loadUsersFromFile(users_file_path);
     } catch (const std::exception& e) {
-        std::cerr << "Failed to initialize AuthManager: " << e.what() << std::endl;
+        auto& logger = utils::Logger::getInstance();
+        logger.error("Failed to initialize AuthManager: " + std::string(e.what()));
         return false;
     }
 }
@@ -99,7 +101,8 @@ std::string AuthManager::authenticate(const std::string& username, const std::st
         }
         
     } catch (const std::exception& e) {
-        std::cerr << "Authentication error: " << e.what() << std::endl;
+        auto& logger = utils::Logger::getInstance();
+        logger.error("Authentication error: " + std::string(e.what()));
         return "";
     }
 }
@@ -147,10 +150,9 @@ std::shared_ptr<User> AuthManager::getUserByToken(const std::string& token) cons
         }
         
         if (use_database_ && user_repository_) {
-            // TEMPORARY: Cache disabled for debugging
             std::string token_hash = hashToken(token);
             
-            // Optimized single JOIN query
+            // Optimized single JOIN query to fetch user by token hash
             auto db_user = user_repository_->findByTokenHash(token_hash);
             
             if (!db_user.has_value()) {
@@ -252,7 +254,8 @@ bool AuthManager::addUser(const std::string& username, const std::string& passwo
         }
         
     } catch (const std::exception& e) {
-        std::cerr << "Error adding user: " << e.what() << std::endl;
+        auto& logger = utils::Logger::getInstance();
+        logger.error("Error adding user: " + std::string(e.what()));
         return false;
     }
 }
@@ -326,7 +329,8 @@ void AuthManager::cleanExpiredTokens() {
         }
         
     } catch (const std::exception& e) {
-        std::cerr << "Error cleaning expired tokens: " << e.what() << std::endl;
+        auto& logger = utils::Logger::getInstance();
+        logger.error("Error cleaning expired tokens: " + std::string(e.what()));
     }
 }
 
@@ -435,7 +439,8 @@ std::string AuthManager::generateToken(const std::string& username) const {
         return token;
         
     } catch (const std::exception& e) {
-        std::cerr << "Error generating token: " << e.what() << std::endl;
+        auto& logger = utils::Logger::getInstance();
+        logger.error("Error generating token: " + std::string(e.what()));
         return "";
     }
 }
@@ -498,7 +503,8 @@ bool AuthManager::loadUsersFromFile(const std::string& file_path) {
         return true;
         
     } catch (const std::exception& e) {
-        std::cerr << "Error loading users: " << e.what() << std::endl;
+        auto& logger = utils::Logger::getInstance();
+        logger.error("Error loading users: " + std::string(e.what()));
         return false;
     }
 }
@@ -528,7 +534,8 @@ bool AuthManager::saveUsersToFile(const std::string& file_path) const {
         return true;
         
     } catch (const std::exception& e) {
-        std::cerr << "Error saving users: " << e.what() << std::endl;
+        auto& logger = utils::Logger::getInstance();
+        logger.error("Error saving users: " + std::string(e.what()));
         return false;
     }
 }

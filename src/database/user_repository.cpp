@@ -51,9 +51,43 @@ User User::fromJson(const nlohmann::json& json) {
     user.is_active = json.value("is_active", true);
     user.login_attempts = json.value("login_attempts", 0);
     
-    // Parse timestamps (simplified for this example)
-    user.created_at = std::chrono::system_clock::now();
-    user.updated_at = std::chrono::system_clock::now();
+    // Parse timestamps from ISO 8601 format
+    auto parse_iso8601 = [](const std::string& iso_str) -> std::chrono::system_clock::time_point {
+        if (iso_str.empty()) {
+            return std::chrono::system_clock::now();
+        }
+        
+        std::tm tm = {};
+        std::istringstream ss(iso_str);
+        ss >> std::get_time(&tm, "%Y-%m-%dT%H:%M:%S");
+        
+        if (ss.fail()) {
+            return std::chrono::system_clock::now();
+        }
+        
+        std::time_t time_c = std::mktime(&tm);
+        return std::chrono::system_clock::from_time_t(time_c);
+    };
+    
+    if (json.contains("created_at")) {
+        user.created_at = parse_iso8601(json["created_at"].get<std::string>());
+    } else {
+        user.created_at = std::chrono::system_clock::now();
+    }
+    
+    if (json.contains("updated_at")) {
+        user.updated_at = parse_iso8601(json["updated_at"].get<std::string>());
+    } else {
+        user.updated_at = std::chrono::system_clock::now();
+    }
+    
+    if (json.contains("last_login") && !json["last_login"].is_null()) {
+        user.last_login = parse_iso8601(json["last_login"].get<std::string>());
+    }
+    
+    if (json.contains("locked_until") && !json["locked_until"].is_null()) {
+        user.locked_until = parse_iso8601(json["locked_until"].get<std::string>());
+    }
     
     return user;
 }
@@ -389,8 +423,53 @@ UserSession UserRepository::resultToSession(PGresult* result, int row) const {
 }
 
 std::chrono::system_clock::time_point UserRepository::parseTimestamp(PGresult* result, int row, int column) const {
-    // Simplified timestamp parsing - in production, use proper PostgreSQL timestamp parsing
-    return std::chrono::system_clock::now();
+    if (PQgetisnull(result, row, column)) {
+        return std::chrono::system_clock::now();
+    }
+    
+    const char* timestamp_str = PQgetvalue(result, row, column);
+    
+    // Parse PostgreSQL timestamp format: "YYYY-MM-DD HH:MM:SS.microseconds+TZ"
+    // Example: "2024-11-09 10:30:15.123456+00"
+    std::tm tm = {};
+    std::istringstream ss(timestamp_str);
+    
+    // Parse date and time
+    ss >> std::get_time(&tm, "%Y-%m-%d %H:%M:%S");
+    
+    if (ss.fail()) {
+        // Fallback to current time if parsing fails
+        return std::chrono::system_clock::now();
+    }
+    
+    // Convert to time_point
+    std::time_t time_c = std::mktime(&tm);
+    auto time_point = std::chrono::system_clock::from_time_t(time_c);
+    
+    // Parse microseconds if present
+    std::string remaining = timestamp_str;
+    size_t dot_pos = remaining.find('.');
+    if (dot_pos != std::string::npos) {
+        size_t plus_pos = remaining.find('+', dot_pos);
+        size_t minus_pos = remaining.find('-', dot_pos);
+        size_t tz_pos = std::min(plus_pos, minus_pos);
+        
+        if (tz_pos != std::string::npos) {
+            std::string microseconds_str = remaining.substr(dot_pos + 1, tz_pos - dot_pos - 1);
+            try {
+                long microseconds = std::stol(microseconds_str);
+                // Pad or truncate to 6 digits
+                while (microseconds_str.length() < 6) {
+                    microseconds *= 10;
+                }
+                time_point += std::chrono::microseconds(microseconds);
+            } catch (...) {
+                // Ignore microseconds if parsing fails
+            }
+        }
+    }
+    
+    return time_point;
 }
 
 std::string UserRepository::formatTimestamp(const std::chrono::system_clock::time_point& timestamp) const {

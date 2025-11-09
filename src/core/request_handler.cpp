@@ -392,7 +392,8 @@ void RequestHandler::setupDefaultRoutes() {
 }
 
 std::string RequestHandler::getRouteKey(const std::string& method, const std::string& path) const {
-    // Simple route matching - in production, use a proper router
+    // Route matching with wildcard support for dynamic paths
+    // Matches patterns like /api/v1/files/download/* and /api/v1/files/*
     if (path.find("/api/v1/files/download/") == 0) {
         return method + ":/api/v1/files/download/*";
     }

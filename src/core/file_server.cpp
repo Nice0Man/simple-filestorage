@@ -27,7 +27,9 @@ bool FileServer::initialize(const std::string& config_path) {
         // Initialize configuration manager
         config_manager_ = std::make_unique<utils::ConfigManager>();
         if (!config_manager_->loadFromFile(config_path)) {
-            std::cerr << "Failed to load configuration from: " << config_path << std::endl;
+            if (logger_) {
+                logger_->error("Failed to load configuration from: " + config_path);
+            }
             return false;
         }
         
@@ -74,7 +76,9 @@ bool FileServer::initialize(const std::string& config_path) {
         return true;
         
     } catch (const std::exception& e) {
-        std::cerr << "Exception during initialization: " << e.what() << std::endl;
+        if (logger_) {
+            logger_->error("Exception during initialization: " + std::string(e.what()));
+        }
         return false;
     }
 }
@@ -428,41 +432,8 @@ void FileServer::serverLoop() {
             }
         });
         
-        // Authentication endpoint
-        server.Post("/api/v1/auth/login", [this](const httplib::Request& req, httplib::Response& res) {
-            try {
-                nlohmann::json request_json = nlohmann::json::parse(req.body);
-                std::string username = request_json["username"];
-                std::string password = request_json["password"];
-                
-                // Get auth manager from request handler (simplified)
-                // In production, this should be properly structured
-                std::string token = ""; // auth_manager_->authenticate(username, password);
-                
-                nlohmann::json response_json;
-                if (!token.empty()) {
-                    response_json["success"] = true;
-                    response_json["token"] = token;
-                    res.status = 200;
-                } else {
-                    response_json["success"] = false;
-                    response_json["error"] = "Invalid credentials";
-                    res.status = 401;
-                }
-                
-                res.set_header("Content-Type", "application/json");
-                res.body = response_json.dump();
-                
-            } catch (const std::exception& e) {
-                nlohmann::json error_response;
-                error_response["success"] = false;
-                error_response["error"] = "Invalid request format";
-                
-                res.status = 400;
-                res.set_header("Content-Type", "application/json");
-                res.body = error_response.dump();
-            }
-        });
+        // Note: All authentication endpoints are handled by RequestHandler
+        // No need for duplicate routes here
         
         // Set server configuration
         server.set_keep_alive_max_count(config_manager_->getInt("server.max_connections", 1000));
