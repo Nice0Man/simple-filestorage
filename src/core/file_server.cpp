@@ -155,8 +155,11 @@ void FileServer::serverLoop() {
             
             res.status = custom_res.status_code;
             res.body = custom_res.body;
+            // Copy headers, skip Content-Length (httplib sets it automatically)
             for (const auto& [key, value] : custom_res.headers) {
-                res.set_header(key, value);
+                if (key != "Content-Length") {
+                    res.set_header(key, value);
+                }
             }
         });
         
@@ -205,8 +208,11 @@ void FileServer::serverLoop() {
             
             res.status = custom_res.status_code;
             res.body = custom_res.body;
+            // Copy headers, skip Content-Length (httplib sets it automatically)
             for (const auto& [key, value] : custom_res.headers) {
-                res.set_header(key, value);
+                if (key != "Content-Length") {
+                    res.set_header(key, value);
+                }
             }
         });
         
@@ -227,8 +233,11 @@ void FileServer::serverLoop() {
             
             res.status = custom_res.status_code;
             res.body = custom_res.body;
+            // Copy headers, skip Content-Length (httplib sets it automatically)
             for (const auto& [key, value] : custom_res.headers) {
-                res.set_header(key, value);
+                if (key != "Content-Length") {
+                    res.set_header(key, value);
+                }
             }
         });
         
@@ -249,8 +258,11 @@ void FileServer::serverLoop() {
             
             res.status = custom_res.status_code;
             res.body = custom_res.body;
+            // Copy headers, skip Content-Length (httplib sets it automatically)
             for (const auto& [key, value] : custom_res.headers) {
-                res.set_header(key, value);
+                if (key != "Content-Length") {
+                    res.set_header(key, value);
+                }
             }
         });
         
@@ -271,8 +283,11 @@ void FileServer::serverLoop() {
             
             res.status = custom_res.status_code;
             res.body = custom_res.body;
+            // Copy headers, skip Content-Length (httplib sets it automatically)
             for (const auto& [key, value] : custom_res.headers) {
-                res.set_header(key, value);
+                if (key != "Content-Length") {
+                    res.set_header(key, value);
+                }
             }
         });
         
@@ -292,8 +307,11 @@ void FileServer::serverLoop() {
             
             res.status = custom_res.status_code;
             res.body = custom_res.body;
+            // Copy headers, skip Content-Length (httplib sets it automatically)
             for (const auto& [key, value] : custom_res.headers) {
-                res.set_header(key, value);
+                if (key != "Content-Length") {
+                    res.set_header(key, value);
+                }
             }
         });
         
@@ -318,8 +336,11 @@ void FileServer::serverLoop() {
             
             res.status = custom_res.status_code;
             res.body = custom_res.body;
+            // Copy headers, skip Content-Length (httplib sets it automatically)
             for (const auto& [key, value] : custom_res.headers) {
-                res.set_header(key, value);
+                if (key != "Content-Length") {
+                    res.set_header(key, value);
+                }
             }
         });
         
@@ -351,8 +372,11 @@ void FileServer::serverLoop() {
             
             res.status = custom_res.status_code;
             res.body = custom_res.body;
+            // Copy headers, skip Content-Length (httplib sets it automatically)
             for (const auto& [key, value] : custom_res.headers) {
-                res.set_header(key, value);
+                if (key != "Content-Length") {
+                    res.set_header(key, value);
+                }
             }
         });
         
@@ -372,8 +396,11 @@ void FileServer::serverLoop() {
             
             res.status = custom_res.status_code;
             res.body = custom_res.body;
+            // Copy headers, skip Content-Length (httplib sets it automatically)
             for (const auto& [key, value] : custom_res.headers) {
-                res.set_header(key, value);
+                if (key != "Content-Length") {
+                    res.set_header(key, value);
+                }
             }
         });
         
@@ -393,8 +420,11 @@ void FileServer::serverLoop() {
             
             res.status = custom_res.status_code;
             res.body = custom_res.body;
+            // Copy headers, skip Content-Length (httplib sets it automatically)
             for (const auto& [key, value] : custom_res.headers) {
-                res.set_header(key, value);
+                if (key != "Content-Length") {
+                    res.set_header(key, value);
+                }
             }
         });
         
