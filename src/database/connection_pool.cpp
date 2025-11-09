@@ -101,10 +101,21 @@ std::unique_ptr<Connection> ConnectionPool::createConnection() {
         return nullptr;
     }
     
-    // Set connection parameters
-    PQexec(pg_conn, "SET client_encoding = 'UTF8'");
-    PQexec(pg_conn, "SET timezone = 'UTC'");
-    PQexec(pg_conn, "SET statement_timeout = '30s'");
+    // Set connection parameters with proper cleanup
+    PGresult* result = nullptr;
+    
+    result = PQexec(pg_conn, "SET client_encoding = 'UTF8'");
+    if (result) PQclear(result);
+    
+    result = PQexec(pg_conn, "SET timezone = 'UTC'");
+    if (result) PQclear(result);
+    
+    result = PQexec(pg_conn, "SET statement_timeout = '30s'");
+    if (result) PQclear(result);
+    
+    // Set application name for monitoring
+    result = PQexec(pg_conn, "SET application_name = 'fileserver'");
+    if (result) PQclear(result);
     
     return conn;
 }
@@ -118,17 +129,22 @@ std::unique_ptr<Connection> ConnectionPool::getConnection(std::chrono::seconds t
     auto deadline = std::chrono::steady_clock::now() + timeout;
     
     while (available_connections_.empty() && !shutdown_requested_) {
+        // Check if we can create new connection (with race condition protection)
         if (stats_.total_connections < config_.max_connections) {
+            // Reserve slot for new connection BEFORE releasing lock
+            stats_.total_connections++;
+            
             // Try to create new connection
             lock.unlock();
             auto new_conn = createConnection();
             lock.lock();
             
             if (new_conn && new_conn->isValid()) {
-                stats_.total_connections++;
                 stats_.active_connections++;
                 return new_conn;
             } else {
+                // Failed to create - revert the reservation
+                stats_.total_connections--;
                 stats_.failed_connections++;
             }
         }
@@ -147,20 +163,30 @@ std::unique_ptr<Connection> ConnectionPool::getConnection(std::chrono::seconds t
     
     auto conn = std::move(available_connections_.front());
     available_connections_.pop();
+    stats_.idle_connections = available_connections_.size();
     
     // Verify connection is still valid
     if (!conn->isValid()) {
         conn->reset();
         if (!conn->isValid()) {
-            // Connection is dead, try to create a new one
-            lock.unlock();
-            auto new_conn = createConnection();
-            lock.lock();
-            
-            if (new_conn && new_conn->isValid()) {
-                stats_.active_connections++;
-                return new_conn;
+            // Connection is dead, try to create a new one if we have room
+            if (stats_.total_connections < config_.max_connections) {
+                lock.unlock();
+                auto new_conn = createConnection();
+                lock.lock();
+                
+                if (new_conn && new_conn->isValid()) {
+                    stats_.active_connections++;
+                    return new_conn;
+                } else {
+                    stats_.total_connections--;
+                    stats_.failed_connections++;
+                    stats_.failed_requests++;
+                    return nullptr;
+                }
             } else {
+                // No room for new connection, decrement counter and fail
+                stats_.total_connections--;
                 stats_.failed_connections++;
                 stats_.failed_requests++;
                 return nullptr;
@@ -169,7 +195,6 @@ std::unique_ptr<Connection> ConnectionPool::getConnection(std::chrono::seconds t
     }
     
     stats_.active_connections++;
-    stats_.idle_connections = available_connections_.size();
     
     return conn;
 }
@@ -182,15 +207,36 @@ void ConnectionPool::returnConnection(std::unique_ptr<Connection> conn) {
     std::lock_guard<std::mutex> lock(mutex_);
     
     if (shutdown_requested_) {
+        stats_.active_connections--;
+        stats_.total_connections--;
         return;
     }
     
     stats_.active_connections--;
     
+    // Validate connection health before returning to pool
     if (conn->isValid()) {
-        available_connections_.push(std::move(conn));
-        stats_.idle_connections = available_connections_.size();
-        condition_.notify_one();
+        // Perform light health check (check transaction status)
+        PGresult* result = PQexec(conn->get(), "SELECT 1");
+        bool is_healthy = result && PQresultStatus(result) == PGRES_TUPLES_OK;
+        
+        if (result) {
+            PQclear(result);
+        }
+        
+        if (is_healthy) {
+            // Reset transaction state if any
+            result = PQexec(conn->get(), "ROLLBACK");
+            if (result) PQclear(result);
+            
+            available_connections_.push(std::move(conn));
+            stats_.idle_connections = available_connections_.size();
+            condition_.notify_one();
+        } else {
+            // Connection is not healthy, discard it
+            stats_.total_connections--;
+            stats_.failed_connections++;
+        }
     } else {
         stats_.total_connections--;
         stats_.failed_connections++;
@@ -279,6 +325,109 @@ PooledConnection& PooledConnection::operator=(PooledConnection&& other) noexcept
         other.pool_ = nullptr;
     }
     return *this;
+}
+
+// Transaction implementation
+Transaction::Transaction(Connection* conn) 
+    : conn_(conn), active_(false), committed_(false) {
+    if (conn_ && conn_->isValid()) {
+        PGresult* result = PQexec(conn_->get(), "BEGIN");
+        if (result && PQresultStatus(result) == PGRES_COMMAND_OK) {
+            active_ = true;
+        }
+        if (result) {
+            PQclear(result);
+        }
+    }
+}
+
+Transaction::~Transaction() {
+    if (active_ && !committed_) {
+        rollback();
+    }
+}
+
+bool Transaction::commit() {
+    if (!active_ || committed_) {
+        return false;
+    }
+    
+    PGresult* result = PQexec(conn_->get(), "COMMIT");
+    bool success = result && PQresultStatus(result) == PGRES_COMMAND_OK;
+    
+    if (result) {
+        PQclear(result);
+    }
+    
+    if (success) {
+        active_ = false;
+        committed_ = true;
+    }
+    
+    return success;
+}
+
+bool Transaction::rollback() {
+    if (!active_) {
+        return false;
+    }
+    
+    PGresult* result = PQexec(conn_->get(), "ROLLBACK");
+    bool success = result && PQresultStatus(result) == PGRES_COMMAND_OK;
+    
+    if (result) {
+        PQclear(result);
+    }
+    
+    active_ = false;
+    return success;
+}
+
+// PreparedStatement implementation
+PreparedStatement::PreparedStatement(Connection* conn, const std::string& name, const std::string& query)
+    : conn_(conn), name_(name), prepared_(false) {
+    if (conn_ && conn_->isValid()) {
+        PGresult* result = PQprepare(conn_->get(), name_.c_str(), query.c_str(), 0, nullptr);
+        prepared_ = result && (PQresultStatus(result) == PGRES_COMMAND_OK);
+        
+        if (result) {
+            PQclear(result);
+        }
+    }
+}
+
+PreparedStatement::~PreparedStatement() {
+    if (prepared_ && conn_ && conn_->isValid()) {
+        std::string deallocate = "DEALLOCATE " + name_;
+        PGresult* result = PQexec(conn_->get(), deallocate.c_str());
+        if (result) {
+            PQclear(result);
+        }
+    }
+}
+
+PGresult* PreparedStatement::execute(const std::vector<std::string>& params) {
+    if (!prepared_ || !conn_ || !conn_->isValid()) {
+        return nullptr;
+    }
+    
+    // Convert parameters to C-style arrays
+    std::vector<const char*> param_values;
+    param_values.reserve(params.size());
+    
+    for (const auto& param : params) {
+        param_values.push_back(param.c_str());
+    }
+    
+    return PQexecPrepared(
+        conn_->get(),
+        name_.c_str(),
+        params.size(),
+        param_values.data(),
+        nullptr,  // param lengths (null for text format)
+        nullptr,  // param formats (null for text format)
+        0         // result format (0 for text)
+    );
 }
 
 } // namespace database

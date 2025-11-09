@@ -5,6 +5,7 @@
 #include <mutex>
 #include <condition_variable>
 #include <string>
+#include <vector>
 #include <chrono>
 #include <libpq-fe.h>
 
@@ -155,6 +156,69 @@ public:
 private:
     std::unique_ptr<Connection> conn_;
     ConnectionPool* pool_;
+};
+
+/**
+ * @brief RAII wrapper for database transactions
+ */
+class Transaction {
+public:
+    explicit Transaction(Connection* conn);
+    ~Transaction();
+    
+    // Non-copyable, non-movable
+    Transaction(const Transaction&) = delete;
+    Transaction& operator=(const Transaction&) = delete;
+    
+    /**
+     * @brief Commit the transaction
+     */
+    bool commit();
+    
+    /**
+     * @brief Rollback the transaction
+     */
+    bool rollback();
+    
+    /**
+     * @brief Check if transaction is active
+     */
+    bool isActive() const { return active_; }
+    
+private:
+    Connection* conn_;
+    bool active_;
+    bool committed_;
+};
+
+/**
+ * @brief RAII wrapper for prepared statements
+ */
+class PreparedStatement {
+public:
+    PreparedStatement(Connection* conn, const std::string& name, const std::string& query);
+    ~PreparedStatement();
+    
+    // Non-copyable, non-movable
+    PreparedStatement(const PreparedStatement&) = delete;
+    PreparedStatement& operator=(const PreparedStatement&) = delete;
+    
+    /**
+     * @brief Execute prepared statement
+     * @param params Parameters for the query
+     * @return Query result
+     */
+    PGresult* execute(const std::vector<std::string>& params);
+    
+    /**
+     * @brief Get statement name
+     */
+    const std::string& getName() const { return name_; }
+    
+private:
+    Connection* conn_;
+    std::string name_;
+    bool prepared_;
 };
 
 } // namespace database

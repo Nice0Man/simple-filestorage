@@ -252,29 +252,98 @@ std::optional<User> UserRepository::findByTokenHash(const std::string& token_has
 }
 
 std::optional<User> UserRepository::authenticate(const std::string& username, const std::string& password) {
-    auto user = findByUsername(username);
-    if (!user.has_value()) {
+    auto conn = pool_->getConnection();
+    if (!conn) {
         return std::nullopt;
     }
     
+    // Use transaction for atomic authentication + updates
+    database::Transaction transaction(conn.get());
+    if (!transaction.isActive()) {
+        return std::nullopt;
+    }
+    
+    // Find user within transaction with row lock
+    const char* query = R"(
+        SELECT id, username, email, password_hash, salt, role, is_active,
+               created_at, updated_at, last_login, login_attempts, locked_until
+        FROM users
+        WHERE username = $1 AND is_active = true
+        FOR UPDATE  -- Lock row for update
+    )";
+    
+    const char* params[1] = { username.c_str() };
+    PGresult* result = PQexecParams(conn->get(), query, 1, nullptr, params, nullptr, nullptr, 0);
+    
+    if (PQresultStatus(result) != PGRES_TUPLES_OK || PQntuples(result) == 0) {
+        PQclear(result);
+        transaction.rollback();
+        return std::nullopt;
+    }
+    
+    User user = resultToUser(result, 0);
+    PQclear(result);
+    
     // Check if account is locked
-    if (user->locked_until.has_value() && 
-        user->locked_until.value() > std::chrono::system_clock::now()) {
+    if (user.locked_until.has_value() && 
+        user.locked_until.value() > std::chrono::system_clock::now()) {
+        transaction.rollback();
         return std::nullopt;
     }
     
     // Verify password
-    if (!verifyPassword(password, user->password_hash, user->salt)) {
-        // Increment login attempts
-        incrementLoginAttempts(user->id);
+    if (!verifyPassword(password, user.password_hash, user.salt)) {
+        // Increment login attempts within transaction (auto-lock after 5 attempts)
+        const char* update_query = R"(
+            UPDATE users 
+            SET login_attempts = login_attempts + 1,
+                locked_until = CASE 
+                    WHEN login_attempts + 1 >= 5 THEN CURRENT_TIMESTAMP + INTERVAL '15 minutes'
+                    ELSE locked_until
+                END
+            WHERE id = $1
+        )";
+        
+        const char* update_params[1] = { user.id.c_str() };
+        PGresult* update_result = PQexecParams(conn->get(), update_query, 1, nullptr, update_params, nullptr, nullptr, 0);
+        
+        if (update_result) {
+            PQclear(update_result);
+        }
+        
+        transaction.commit();
         return std::nullopt;
     }
     
-    // Reset login attempts on successful authentication
-    resetLoginAttempts(user->id);
-    updateLastLogin(user->id, std::chrono::system_clock::now());
+    // Reset login attempts and update last login atomically
+    const char* success_query = R"(
+        UPDATE users 
+        SET login_attempts = 0, 
+            locked_until = NULL,
+            last_login = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1
+        RETURNING id, username, email, password_hash, salt, role, is_active,
+                  created_at, updated_at, last_login, login_attempts, locked_until
+    )";
     
-    return user;
+    const char* success_params[1] = { user.id.c_str() };
+    result = PQexecParams(conn->get(), success_query, 1, nullptr, success_params, nullptr, nullptr, 0);
+    
+    if (PQresultStatus(result) != PGRES_TUPLES_OK || PQntuples(result) == 0) {
+        PQclear(result);
+        transaction.rollback();
+        return std::nullopt;
+    }
+    
+    User updated_user = resultToUser(result, 0);
+    PQclear(result);
+    
+    if (!transaction.commit()) {
+        return std::nullopt;
+    }
+    
+    return updated_user;
 }
 
 bool UserRepository::updateLastLogin(const std::string& user_id, 
